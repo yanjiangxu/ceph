@@ -803,15 +803,6 @@ bool RGWOp::generate_cors_headers(string& origin, string& method, string& header
   return true;
 }
 
-/**
- * Return a callable that can invoke dump_access_control().
- */
-
-boost::function<void()> RGWOp::dump_access_control_f()
-{
-  return boost::bind(dump_access_control, s, this);
-}
-
 int RGWGetObj::read_user_manifest_part(rgw_bucket& bucket,
                                        const rgw_bucket_dir_entry& ent,
                                        RGWAccessControlPolicy * const bucket_policy,

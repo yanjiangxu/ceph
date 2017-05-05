@@ -222,8 +222,10 @@ string camelcase_dash_http_attr(const string& orig)
 static set<string> hostnames_set;
 static set<string> hostnames_s3website_set;
 
-void rgw_rest_init(CephContext *cct)
+void rgw_rest_init(CephContext *cct, RGWRados *store, RGWZoneGroup& zone_group)
 {
+  store->init_host_id();
+
   for (const auto& rgw2http : base_rgw_to_http_attrs)  {
     rgw_to_http_attrs[rgw2http.rgw_attr] = rgw2http.http_attr;
   }
@@ -253,12 +255,6 @@ void rgw_rest_init(CephContext *cct)
   }
 
   hostnames_set.insert(cct->_conf->rgw_dns_name);
-}
-
-void rgw_rest_init(CephContext *cct, RGWRados *store, RGWZoneGroup& zone_group)
-{
-  store->init_host_id();
-  rgw_rest_init(cct);
   hostnames_set.insert(zone_group.hostnames.begin(), zone_group.hostnames.end());
   hostnames_set.erase(""); // filter out empty hostnames
   ldout(cct, 20) << "RGW hostnames: " << hostnames_set << dendl;
@@ -1087,7 +1083,7 @@ void RGWRESTFlusher::do_start(int ret)
   set_req_state_err(s, ret); /* no going back from here */
   dump_errno(s);
   dump_start(s);
-  end_header(s);
+  end_header(s, op);
   rgw_flush_formatter_and_reset(s, s->formatter);
 }
 

@@ -20,7 +20,6 @@ extern std::map<std::string, std::string> rgw_to_http_attrs;
 extern string camelcase_dash_http_attr(const string& orig);
 extern string lowercase_dash_http_attr(const string& orig);
 
-extern void rgw_rest_init(CephContext *cct);
 extern void rgw_rest_init(CephContext *cct, RGWRados *store, RGWZoneGroup& zone_group);
 
 extern void rgw_flush_formatter_and_reset(struct req_state *s,
@@ -131,16 +130,18 @@ public:
 
 class RGWRESTFlusher : public RGWFormatterFlusher {
   struct req_state *s;
+  RGWOp *op;
 protected:
   void do_flush() override;
   void do_start(int ret) override;
 public:
-  RGWRESTFlusher(struct req_state *_s) :
-    RGWFormatterFlusher(_s->formatter), s(_s) {}
-  RGWRESTFlusher() : RGWFormatterFlusher(NULL), s(NULL) {}
+  RGWRESTFlusher(struct req_state *_s, RGWOp *_op) :
+    RGWFormatterFlusher(_s->formatter), s(_s), op(_op) {}
+  RGWRESTFlusher() : RGWFormatterFlusher(NULL), s(NULL), op(NULL) {}
 
-  void init(struct req_state *_s) {
+  void init(struct req_state *_s, RGWOp *_op) {
     s = _s;
+    op = _op;
     set_formatter(s->formatter);
   }
 };
@@ -399,7 +400,7 @@ public:
   void init(RGWRados *store, struct req_state *s,
             RGWHandler *dialect_handler) override {
     RGWOp::init(store, s, dialect_handler);
-    flusher.init(s);
+    flusher.init(s, this);
   }
   void send_response() override;
   virtual int check_caps(RGWUserCaps& caps)

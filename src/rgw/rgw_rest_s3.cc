@@ -2044,6 +2044,7 @@ done:
     s->formatter->dump_string("Key", s->object.name);
     s->formatter->close_section();
   }
+  s->err.message = err_msg;
   set_req_state_err(s, op_ret);
   dump_errno(s);
   if (op_ret >= 0) {

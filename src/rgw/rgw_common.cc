@@ -308,17 +308,17 @@ void set_req_state_err(struct rgw_err& err,	/* out */
     err_no = -err_no;
 
   err.ret = -err_no;
-  err.is_website_redirect = false;
+  bool is_website_redirect = false;
 
   if (prot_flags & RGW_REST_SWIFT) {
-    if (search_err(rgw_http_swift_errors, err_no, err.is_website_redirect, err.http_ret, err.s3_code))
+    if (search_err(rgw_http_swift_errors, err_no, is_website_redirect, err.http_ret, err.s3_code))
       return;
   }
 
   //Default to searching in s3 errors
-  err.is_website_redirect |= (prot_flags & RGW_REST_WEBSITE)
+  is_website_redirect |= (prot_flags & RGW_REST_WEBSITE)
 		&& err_no == ERR_WEBSITE_REDIRECT && err.is_clear();
-  if (search_err(rgw_http_s3_errors, err_no, err.is_website_redirect, err.http_ret, err.s3_code))
+  if (search_err(rgw_http_s3_errors, err_no, is_website_redirect, err.http_ret, err.s3_code))
       return;
   dout(0) << "WARNING: set_req_state_err err_no=" << err_no
 	<< " resorting to 500" << dendl;

@@ -264,7 +264,6 @@ struct rgw_err {
   bool is_err() const;
   friend std::ostream& operator<<(std::ostream& oss, const rgw_err &err);
 
-  bool is_website_redirect;
   int http_ret;
   int ret;
   std::string s3_code;
@@ -1667,7 +1666,6 @@ struct req_init_state {
 
 /* XXX why don't RGWRequest (or descendants) hold this state? */
 class RGWRequest;
-class RGWHandler;
 
 #include "rgw_auth.h"
 
