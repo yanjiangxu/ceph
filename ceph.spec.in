@@ -309,11 +309,9 @@ Group:          System/Filesystems
 Requires:       ceph-base = %{epoch}:%{version}-%{release}
 Requires:       python-pecan
 %if 0%{?fedora} || 0%{?rhel}
-Requires:       pyOpenSSL
 Requires:       python-werkzeug
 %endif
 %if 0%{?suse_version}
-Requires:       python-pyOpenSSL
 Requires:       python-Werkzeug
 %endif
 %description mgr
