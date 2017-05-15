@@ -1598,7 +1598,7 @@ void ReplicatedBackend::prep_push(
   pi.recovery_info.oi = obc->obs.oi;
   pi.recovery_info.version = version;
   pi.recovery_info.object_exist = missing_iter->second.clean_regions.object_is_exist();
-  pi.recovery_progress.omap_complete = missing_iter->second.clean_regions.omap_is_dirty() &&
+  pi.recovery_progress.omap_complete = !missing_iter->second.clean_regions.omap_is_dirty() &&
     (parent->min_peer_features() & CEPH_FEATURE_OSD_PARTIAL_RECOVERY);
   pi.lock_manager = std::move(lock_manager);
 
