@@ -1650,6 +1650,7 @@ void ReplicatedBackend::submit_push_data(
                       oi.expected_write_size,
                       oi.alloc_hint_flags);
     } else {
+      t->touch(coll, ghobject_t(target_oid));
       //remove xattr and update later if overwrite on original object
       t->rmattrs(coll, ghobject_t(target_oid));
       //if need update omap, clear the previous content first
