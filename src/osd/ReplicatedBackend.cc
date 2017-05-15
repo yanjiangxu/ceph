@@ -1279,7 +1279,7 @@ void ReplicatedBackend::calc_head_subsets(
   }
 
   // what's left for us to push?
-  clone_subset[c] = cloning;
+  clone_subsets[c] = cloning;
   data_subset.subtract(cloning);
 
   dout(10) << "calc_head_subsets " << head
