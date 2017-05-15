@@ -241,7 +241,7 @@ class interval_set {
     return _size == other._size && m == other.m;
   }
 
-  int64_t size() const {
+  uint64_t size() const {
     return _size;
   }
 
@@ -565,7 +565,7 @@ class interval_set {
 
 private:
   // data
-  int64_t _size;
+  uint64_t _size;
   std::map<T,T> m;   // map start -> len
 };
 
