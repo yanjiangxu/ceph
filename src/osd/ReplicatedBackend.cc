@@ -985,11 +985,18 @@ Message * ReplicatedBackend::generate_subop(
 
   // ship resulting transaction, log entries, and pg_stats
   if (!parent->should_send_op(peer, soid)) {
-    dout(10) << "issue_repop shipping empty opt to osd." << peer
-	     <<", object " << soid
-	     << " beyond MAX(last_backfill_started "
-	     << ", pinfo.last_backfill "
-	     << pinfo.last_backfill << ")" << dendl;
+    if (get_parent()->get_backfill_shards().count(peer)) {
+      // need backfill
+      dout(10) << "issue_repop shipping empty opt to osd." << peer
+               <<", object " << soid
+               << " beyond MAX(last_backfill_started "
+               << ", pinfo.last_backfill "
+               << pinfo.last_backfill << ")" << dendl;
+    }else{
+      // missing, need recovery
+      dout(10) << "issue_repop shipping empty opt to osd." << peer
+               <<", object " << soid << " missing on it" << dendl;
+    }
     ObjectStore::Transaction t;
     ::encode(t, wr->get_data());
   } else {
@@ -1086,9 +1093,6 @@ void ReplicatedBackend::do_repop(OpRequestRef op)
 
   // sanity checks
   assert(m->map_epoch >= get_info().history.same_interval_since);
-
-  // we better not be missing this.
-  assert(!parent->get_log().get_missing().is_missing(soid));
 
   int ackerosd = m->get_source().num();
 

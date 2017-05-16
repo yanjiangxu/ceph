@@ -398,8 +398,14 @@ public:
       hoid.pool != (int64_t)info.pgid.pool() ||
       hoid <= last_backfill_started ||
       hoid <= peer_info[peer].last_backfill;
-    if (!should_send)
+    if (!should_send) {
       assert(is_backfill_targets(peer));
+      return should_send;
+    }
+    if (peer_missing.count(peer) && 
+        peer_missing[peer].get_items().count(hoid)) {
+      should_send = false;
+    }
     return should_send;
   }
   

@@ -3857,7 +3857,12 @@ public:
     if (p != missing.end() && p->second.need <= v)
       rm(p);
   }
-
+  void rm(const hobject_t& oid) {
+    auto p = missing.find(oid);
+    if (p != missing.end()) {
+      rm(p);
+    }
+  }
   void rm(std::map<hobject_t, item>::const_iterator m) {
     tracker.changed(m->first);
     rmissing.erase(m->second.need.version);
