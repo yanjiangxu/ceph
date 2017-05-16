@@ -3746,6 +3746,14 @@ public:
       && e.version > miter->second.have)
       miter->second.clean_regions.merge(e.clean_regions);
   }
+  void force_merge(const pg_log_entry_t& e)
+  {
+    auto miter = missing.find(e.soid);
+    if (miter != missing.end())
+    {
+      miter->second.clean_regions.merge(e.clean_regions);
+    }
+  }
   bool is_missing(const hobject_t& oid, pg_missing_item *out = nullptr) const override {
     auto iter = missing.find(oid);
     if (iter == missing.end())

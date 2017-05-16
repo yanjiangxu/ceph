@@ -138,6 +138,7 @@ typedef ceph::shared_ptr<const OSDMap> OSDMapRef;
      virtual const set<pg_shard_t> &get_actingbackfill_shards() const = 0;
      virtual const set<pg_shard_t> &get_acting_shards() const = 0;
      virtual const set<pg_shard_t> &get_backfill_shards() const = 0;
+     virtual void merge_async_missing(const vector<pg_log_entry_t>& logv,const hobject_t &hoid) = 0;
 
      virtual std::string gen_dbg_prefix() const = 0;
 

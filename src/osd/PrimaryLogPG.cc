@@ -318,7 +318,25 @@ public:
     return retval;
   }
 };
+void PrimaryLogPG::merge_async_missing(const vector<pg_log_entry_t>& logv,const hobject_t &hoid)
+{
+  for (set<pg_shard_t>::iterator i = actingbackfill.begin();i != actingbackfill.end();++i) {
+    if (*i == get_primary()) continue;
+    if (actingset.count(*i)) continue;
+    if (backfill_targets.count(*i)) continue;
 
+    pg_shard_t peer = *i;
+    if (peer_missing.count(peer) && peer_missing[peer].get_items().count(hoid)){
+      for (vector<pg_log_entry_t>::const_iterator p = logv.begin();p != logv.end(); ++p) {
+        peer_missing[peer].force_merge(*p);
+        dout(20) <<__func__ << " soid: "<< hoid
+                <<" log_entry:" << p->clean_regions
+                <<" peer_missing["<<peer <<"]:"<< peer_missing[peer].get_items().find(hoid)->second.clean_regions << dendl;
+      }
+    }
+  }
+  return;
+}
 // ======================
 // PGBackend::Listener
 

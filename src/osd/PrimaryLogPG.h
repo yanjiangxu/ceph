@@ -51,8 +51,8 @@ void put_with_id(PrimaryLogPG *pg, uint64_t id);
 #endif
 
 struct inconsistent_snapset_wrapper;
-
 class PrimaryLogPG : public PG, public PGBackend::Listener {
+
   friend class OSD;
   friend class Watch;
 
@@ -304,7 +304,7 @@ public:
   const set<pg_shard_t> &get_backfill_shards() const override {
     return backfill_targets;
   }
-
+  void merge_async_missing(const vector<pg_log_entry_t>& logv,const hobject_t &hoid);
   std::string gen_dbg_prefix() const override { return gen_prefix(); }
   
   const map<hobject_t, set<pg_shard_t>>
