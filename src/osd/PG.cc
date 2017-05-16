@@ -1291,67 +1291,85 @@ void PG::calc_replicated_acting(
   }
 
   // This no longer has backfill OSDs, but they are covered above.
-  for (vector<int>::const_iterator i = acting.begin();
-       i != acting.end();
-       ++i) {
-    pg_shard_t acting_cand(*i, shard_id_t::NO_SHARD);
-    if (usable >= size)
-      break;
-
-    // skip up osds we already considered above
-    if (acting_cand == primary->first)
-      continue;
-    vector<int>::const_iterator up_it = find(up.begin(), up.end(), acting_cand.osd);
-    if (up_it != up.end())
-      continue;
-
-    const pg_info_t &cur_info = all_info.find(acting_cand)->second;
-    if (cur_info.is_incomplete() ||
-	cur_info.last_update < primary->second.log_tail) {
-      ss << " shard " << acting_cand << " (stray) REJECTED "
-	       << cur_info << std::endl;
-    } else {
-      want->push_back(*i);
-      acting_backfill->insert(acting_cand);
-      ss << " shard " << acting_cand << " (stray) accepted "
-	 << cur_info << std::endl;
-      usable++;
+  if (usable < size) {
+    map<eversion_t, int> last_update_to_acting;
+    for (auto it = acting.begin(); it != acting.end(); ++it) {
+      pg_shard_t shard(*it, shard_id_t::NO_SHARD);
+      const pg_info_t &cur_info = all_info.find(shard)->second;
+      last_update_to_acting.insert(std::make_pair(cur_info.last_update, *it));
+    }
+    for (auto i = last_update_to_acting.rbegin();
+         i != last_update_to_acting.rend();
+         ++i) {
+      pg_shard_t acting_cand(i->second, shard_id_t::NO_SHARD);
+      if (usable >= size)
+        break;
+      // skip up osds we already considered above
+      if (acting_cand == primary->first)
+        continue;
+      const auto up_it = find(up.begin(), up.end(), acting_cand.osd);
+      if (up_it != up.end())
+        continue;
+ 
+      const pg_info_t &cur_info = all_info.find(acting_cand)->second;
+      if (cur_info.is_incomplete() ||
+          cur_info.last_update < primary->second.log_tail) {
+        ss << " shard " << acting_cand << " (stray) REJECTED "
+                 << cur_info << std::endl;
+        break;
+      } else {
+        want->push_back(i->second);
+        acting_backfill->insert(acting_cand);
+        ss << " shard " << acting_cand << " (stray) accepted "
+           << cur_info << std::endl;
+        usable++;
+      }
     }
   }
 
   if (restrict_to_up_acting) {
     return;
   }
-  for (map<pg_shard_t,pg_info_t>::const_iterator i = all_info.begin();
-       i != all_info.end();
-       ++i) {
-    if (usable >= size)
+  if (usable < size) {
+    map<eversion_t, map<pg_shard_t, pg_info_t>::const_iterator> last_update_to_shard;
+    for (auto it = all_info.begin();
+       it != all_info.end(); ++it) {
+      last_update_to_shard.insert(std::make_pair(it->second.last_update, it));
+    }
+    for (auto i = last_update_to_shard.rbegin();
+         i != last_update_to_shard.rend();
+         ++i) {
+      if (usable >= size)
+        break;
+      pg_shard_t acting_cand = i->second->first;
+ 
+      // skip up osds we already considered above
+      if (acting_cand == primary->first)
+        continue;
+      const auto up_it = find(up.begin(), up.end(), acting_cand.osd);
+      if (up_it != up.end())
+        continue;
+      const auto acting_it = find(acting.begin(), acting.end(), acting_cand.osd);
+      if (acting_it != acting.end())
+        continue;
+ 
+      const pg_info_t &cur_info = i->second->second;
+ 
+      if (cur_info.is_incomplete() ||
+          cur_info.last_update < primary->second.log_tail) {
+        ss << " shard " << acting_cand << " (stray) REJECTED "
+           << cur_info << std::endl;
       break;
-
-    // skip up osds we already considered above
-    if (i->first == primary->first)
-      continue;
-    vector<int>::const_iterator up_it = find(up.begin(), up.end(), i->first.osd);
-    if (up_it != up.end())
-      continue;
-    vector<int>::const_iterator acting_it = find(
-      acting.begin(), acting.end(), i->first.osd);
-    if (acting_it != acting.end())
-      continue;
-
-    if (i->second.is_incomplete() ||
-	i->second.last_update < primary->second.log_tail) {
-      ss << " shard " << i->first << " (stray) REJECTED "
-	 << i->second << std::endl;
-    } else {
-      want->push_back(i->first.osd);
-      acting_backfill->insert(i->first);
-      ss << " shard " << i->first << " (stray) accepted "
-	 << i->second << std::endl;
-      usable++;
+      } else {
+        want->push_back(acting_cand.osd);
+        acting_backfill->insert(acting_cand);
+        ss << " shard " << acting_cand << " (stray) accepted "
+           << cur_info << std::endl;
+        usable++;
+      }
     }
   }
-  // recovery -> backfill?
+  // async recovery
   if (want->size() > min_size) {
     map<eversion_t, int> last_update_to_shard;
     for (vector<int>::iterator it = want->begin(); it != want->end(); ++it) {
@@ -1363,7 +1381,7 @@ void PG::calc_replicated_acting(
     for (map<eversion_t, int>::iterator p = last_update_to_shard.begin();
          p != last_update_to_shard.end(); ++p) {
       assert(p->first.epoch <= max_last_update.epoch);
-      // change recovery to backfill if there are over max_updates gap
+      // change to async recovery if there are over max_updates gap
       if (want->size() > min_size &&
           max_last_update.version > p->first.version + max_updates) {
         vector<int>::iterator q = find(want->begin(), want->end(), p->second);
@@ -1375,7 +1393,7 @@ void PG::calc_replicated_acting(
           strayset.erase(r);
         //backfill->insert(pg_shard_t(p->second, shard_id_t::NO_SHARD));
         ss << " too many updates for shard " << p->second
-         << ", switch from recovery to backfill " << std::endl;
+         << ", switch to async recovery " << std::endl;
       } else {
         break;
       }
