@@ -617,11 +617,27 @@ bool PrimaryLogPG::is_degraded_or_backfilling_object(const hobject_t& soid)
 
 void PrimaryLogPG::wait_for_degraded_object(const hobject_t& soid, OpRequestRef op)
 {
-  assert(is_degraded_or_backfilling_object(soid));
+  assert(is_degraded_or_backfilling_object(soid)|| is_missing_have_old_object(soid));
 
   maybe_kick_recovery(soid);
   waiting_for_degraded_object[soid].push_back(op);
   op->mark_delayed("waiting for degraded object");
+}
+// have old version of this object on the async recovery targets?
+bool PrimaryLogPG::is_missing_have_old_object(const hobject_t& soid)
+{
+  for (auto i = actingbackfill.begin();
+       i != actingbackfill.end();
+       ++i) {
+    if (*i == get_primary()) continue;
+    if (actingset.count(*i)) continue;
+    pg_shard_t peer = *i;
+    if (peer_missing.count(peer) &&
+      peer_missing[peer].get_items().count(soid) &&
+      peer_missing[peer].have_old(soid) != eversion_t())
+      return true;
+  }
+  return false;
 }
 
 void PrimaryLogPG::block_write_on_full_cache(
@@ -5046,6 +5062,8 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	  ctx->cache_evict = true;
 	}
 	osd->logger->inc(l_osd_tier_evict);
+        if (result != -EAGAIN)
+          osd->logger->inc(l_osd_tier_evict);
       }
       break;
 
@@ -6409,7 +6427,12 @@ inline int PrimaryLogPG::_delete_oid(OpContext *ctx, bool no_whiteout)
   object_info_t& oi = obs.oi;
   const hobject_t& soid = oi.soid;
   PGTransaction* t = ctx->op_t.get();
-
+  // if the object is missing and have an old version on the async
+  // recovery targets, recover it first
+  if (is_missing_have_old_object(soid)) {
+    wait_for_degraded_object(soid, ctx->op);
+    return -EAGAIN;
+  }
   if (!obs.exists || (obs.oi.is_whiteout() && !no_whiteout))
     return -ENOENT;
 
@@ -6531,8 +6554,9 @@ int PrimaryLogPG::_rollback_to(OpContext *ctx, ceph_osd_op& op)
       // Cannot delete an object with watchers
       ret = -EBUSY;
     } else {
-      _delete_oid(ctx, false);
-      ret = 0;
+      ret = _delete_oid(ctx, false);
+      if (ret != -EAGAIN)
+        ret = 0;
     }
   } else if (ret) {
     // ummm....huh? It *can't* return anything else at time of writing.
@@ -12425,6 +12449,11 @@ bool PrimaryLogPG::agent_maybe_evict(ObjectContextRef& obc, bool after_flush)
   }
   if (obc->obs.oi.is_cache_pinned()) {
     dout(20) << __func__ << " skip (cache_pinned) " << obc->obs.oi << dendl;
+    return false;
+  }
+  if (is_missing_have_old_object(soid)) {
+    dout(20) << __func__ << " skip (degraded on async recovery targets) "
+             << obc->obs.oi << dendl;
     return false;
   }
 
