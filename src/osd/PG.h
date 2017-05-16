@@ -1109,6 +1109,10 @@ public:
     pg_shard_t *want_primary,
     unsigned max_updates,
     ostream &ss);
+  static bool is_up_or_acting_set_equal_replicated(const vector<int> &l,
+                                                   const vector<int> &r);
+  bool is_up_or_acting_set_equal(const vector<int> &l,
+                                 const vector<int> &r);
   bool choose_acting(pg_shard_t &auth_log_shard,
 		     bool restrict_to_up_acting,
 		     bool *history_les_bound);
